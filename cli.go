@@ -4,6 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
+	"path"
+	"path/filepath"
+	"regexp"
 )
 
 // Exit codes are int values that represent an exit code for a particular error.
@@ -29,7 +33,7 @@ func (cli *CLI) Run(args []string) int {
 	flags := flag.NewFlagSet(Name, flag.ContinueOnError)
 	flags.SetOutput(cli.errStream)
 
-	flags.BoolVar(&n, "n", false, "show what would have been transferred")
+	flags.BoolVar(&n, "dry-run", false, "show what would have been transferred")
 	flags.BoolVar(&n, "n", false, "show what would have been transferred(Short)")
 
 	flVersion := flags.Bool("version", false, "Print version information and quit.")
@@ -41,11 +45,65 @@ func (cli *CLI) Run(args []string) int {
 
 	// Show version
 	if *flVersion {
-		fmt.Fprintf(cli.errStream, "%s version %s\n", Name, Version)
+		fmt.Println(cli.errStream, "%s version %s\n", Name, Version)
 		return ExitCodeOK
 	}
 
-	_ = n
+	// Check count of args
+	parsedArgs := flags.Args()
+	if len(parsedArgs) < 3 {
+		fmt.Println("[Usage]\n$ rrn regexp replacement file|dir")
+		return ExitCodeError
+	}
+	regexpStr := parsedArgs[0]
+	replacement := parsedArgs[1]
+	srcPath := parsedArgs[2]
+
+	// Compile regexp
+	re, err := regexp.Compile(regexpStr)
+	if err != nil {
+		fmt.Println("arg 1 must be regular expression")
+		return ExitCodeError
+	}
+
+	// Check source path
+	if _, err := os.Lstat(srcPath); err != nil {
+		fmt.Println("arg 3 must be path string")
+		return ExitCodeError
+	}
+
+	// Rename recursive
+	err = filepath.Walk(srcPath,
+		func(srcPath string, info os.FileInfo, err error) error {
+			if info.IsDir() {
+				return nil
+			}
+
+			// rename file only
+			dir, srcFile := path.Split(srcPath)
+			dstFile := re.ReplaceAllString(srcFile, replacement)
+
+			if srcFile == dstFile {
+				return nil
+			}
+			dstPath := dir + dstFile
+
+			if n {
+				fmt.Println(fmt.Sprintf("'%s' would be renamed to '%s'", srcPath, dstPath))
+			} else {
+				err = os.Rename(srcPath, dstPath)
+				if err != nil {
+					return err
+				}
+			}
+
+			return nil
+		})
+
+	if err != nil {
+		fmt.Println(err)
+		return ExitCodeError
+	}
 
 	return ExitCodeOK
 }
