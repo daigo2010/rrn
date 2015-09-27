@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 )
@@ -61,7 +62,7 @@ func (cli *CLI) Run(args []string) int {
 	// Compile regexp
 	re, err := regexp.Compile(regexpStr)
 	if err != nil {
-		fmt.Println("arg 1 must be regexp")
+		fmt.Println("arg 1 must be regular expression")
 		return ExitCodeError
 	}
 
@@ -71,26 +72,28 @@ func (cli *CLI) Run(args []string) int {
 		return ExitCodeError
 	}
 
-	// Do rename recursive
-	var replacedPath string
+	// Rename recursive
 	err = filepath.Walk(srcPath,
-		func(path string, info os.FileInfo, err error) error {
+		func(srcPath string, info os.FileInfo, err error) error {
 			if info.IsDir() {
 				return nil
 			}
 
-			replacedPath = re.ReplaceAllString(path, replacement)
+			// rename file only
+			dir, srcFile := path.Split(srcPath)
+			dstFile := re.ReplaceAllString(srcFile, replacement)
 
-			if path == replacedPath {
+			if srcFile == dstFile {
 				return nil
 			}
+			dstPath := dir + dstFile
 
 			if n {
-				fmt.Println(fmt.Sprintf("'%s' would be renamed to '%s'", path, replacedPath))
+				fmt.Println(fmt.Sprintf("'%s' would be renamed to '%s'", srcPath, dstPath))
 			} else {
-				err = os.Rename(path, replacedPath)
+				err = os.Rename(srcPath, dstPath)
 				if err != nil {
-					fmt.Println(err)
+					return err
 				}
 			}
 
