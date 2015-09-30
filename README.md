@@ -1,10 +1,17 @@
 # rrn
 
-
+Recursive Rename Command.
 
 ## Description
 
+This command can change the file name to in the sub directory simply.
+
 ## Usage
+
+```bash
+rrn -n '/.txt$' '.xml' . # dry-run
+rrn '/.txt$' '.xml' .
+```
 
 ## Install
 
